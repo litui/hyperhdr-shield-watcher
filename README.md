@@ -31,7 +31,7 @@ Agree to the prompts to install the necessary packages.
 In your home directory or another suitable location, run each of the following commands:
 
 ```bash
-git clone https://github.com/litui/hyperhdr-shield-watcher`
+git clone https://github.com/litui/hyperhdr-shield-watcher
 cd hyperhdr-shield-watcher
 python -m venv .venv
 . .venv/bin/activate
