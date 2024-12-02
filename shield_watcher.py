@@ -1,9 +1,22 @@
 #!/usr/bin/env python
 import os
+import signal
 import sys
 from dotenv import load_dotenv
 from handler.adb import ADBHandler, STATE_POWER_ON
 from handler.hyperhdr import HyperHDRHandler
+
+
+def signal_handler(signal_number, stack_frame):
+    if signal_number == signal.SIGINT:
+        print("Interrupted", file=sys.stderr)
+        sys.exit(130)
+    elif signal_number == signal.SIGQUIT:
+        print("Received SIGQUIT. Exiting.", file=sys.stderr)
+        sys.exit(0)
+    elif signal_number == signal.SIGTERM:
+        print("Received SIGTERM. Exiting.", file=sys.stderr)
+        sys.exit(0)
 
 
 def main():
@@ -41,11 +54,8 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Interrupted", file=sys.stderr)
-        try:
-            sys.exit(130)
-        except SystemExit:
-            os._exit(130)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGQUIT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    main()

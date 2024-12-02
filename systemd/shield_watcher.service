@@ -1,0 +1,9 @@
+[Unit]
+Description=HyperHDR Shield Watcher
+
+[Service]
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/path/to/.venv/bin/python /path/to/shield_watcher.py
+
+[Install]
+WantedBy=default.target

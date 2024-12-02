@@ -4,11 +4,21 @@ This tool is for monitoring the ADB logs on the Nvidia SHIELD TV Pro in order to
 
 Current functionality is to enable LEDs when the SHIELD turns on and to disable LEDs when it goes into standby. When HDR content is displayed, it will switch the LEDs to HDR mode and revert them back to SDR mode afterward. It will also revert to SDR mode when power is turned off or on.
 
+## HDR-capable apps tested & known to work
+
+I've set up this program on the assumption of HDR10. I'm not sure if it'll react the same for Dolby Vision. Please test and let me know!
+
+### HDR10
+* Netflix
+* Disney+
+* Prime Video
+* Moonlight
+
 ## Preparation
 
 1. You probably need to be using an SHIELD TV Pro as your video source. *This code can surely be adapted to work with any Android TV device but the stock messages I've set up this program to look for might not be the same for your device. You're welcome to fork and customize what's here.*
 
-2. You need a TV capable of displaying HDR content that currently works in HDR mode with the SHIELD TV Pro. *I've set up this program on the assumption of HDR10. I'm not sure if it'll react the same for Dolby Vision. Please test and let me know!*
+2. You need a TV capable of displaying HDR content that currently works in HDR mode with the SHIELD TV Pro.
 
 3. You should have a fully set up Raspberry Pi or other Linux-based system (I'll assume Debian-based here) running HyperHDR with working video capture and LEDs.
 
@@ -51,9 +61,9 @@ Run this program for the first time. It may exit with an error but that's fine a
 
 If it exits the first time, run it again once you've approved the ADB connection and, assuming the IPs, ports, and prerequisites are in place, it'll run fine.
 
-I don't yet have this tool running as a daemon (background process) so consider using `screen` or `tmux` to run it remotely for now.
+An example systemd unit file can be found in the `systemd` folder for running this tool as a background service.
 
 ## TODO:
 
-* Daemonize
 * See what other cool things can be triggered based on the ADB logs
+* Potentially add support for checking my LG TV power status so the initial state of the LEDs/grabber can match it.
