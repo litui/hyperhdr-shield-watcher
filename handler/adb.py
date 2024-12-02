@@ -23,16 +23,24 @@ STATE_TYPE_POWER = 1
 REGEX_MAPPING = {
     "hwcomposer": [
         {
-            # hwcomposer always seems to clear its HDR cache after reverting to SDR.
-            # Therefore:
-            #   All hwcomposer HDR messages except the cache clear == HDR is on
-            #   hwcomposer HDR messages with "Clear cached..."     == HDR is off
+            #   Flip new ...        == HDR is on
+            #   Clear cached...     == HDR is off
             "state_type": STATE_TYPE_HDR,
-            "regex": re.compile(r"^(?P<label>HDR): (?P<clear_msg>Clear cached)?.*$"),
+            "regex": re.compile(
+                r"^HDR: (?P<smpte_type>Clear cached|Flip new) SMPTE 2086 metadata.*$"
+            ),
             "groups": {
-                "label": {"HDR": STATE_HDR_ON},
-                "clear_msg": {"Clear cached": STATE_HDR_OFF},
+                "smpte_type": {"Flip new": STATE_HDR_ON, "Clear cached": STATE_HDR_OFF},
             },
+        },
+    ],
+    "com.limelight.LimeLog": [
+        {
+            # Moonlight uses a little bit of a different mechanism to trigger HDR.
+            # This should enable it, while the above hwcomposer regex should disable it still.
+            "state_type": STATE_TYPE_HDR,
+            "regex": re.compile(r"^Display HDR mode: (?P<status>\w*)$"),
+            "groups": {"status": {"enabled": STATE_HDR_ON}},
         }
     ],
     "PowerManagerService": [
@@ -136,8 +144,17 @@ class ADBHandler:
                             g = matched_msg.group(name)
                             if g and g in values.keys():
                                 state = values[g]
+                                # print(
+                                #     f"Process log: {process} logged state {state} via regex match group {name}"
+                                # )
 
-                    queue.put({"state_type": state_type, "state": state})
+                        queue.put(
+                            {
+                                "process": process,
+                                "state_type": state_type,
+                                "state": state,
+                            }
+                        )
 
         output.close()
 
@@ -155,6 +172,7 @@ class ADBHandler:
         for stype, sval in self._current_state.items():
             if new_state[stype] != sval:
                 try:
+                    # print(f"Process {qitem['process']} triggered {stype} callback...")
                     self._callbacks[stype](new_state[stype], sval)
                 except:
                     pass
