@@ -2,8 +2,6 @@ import json
 import requests
 import sys
 
-API_PATH = "/json-rpc"
-
 
 class HyperHDRHandler:
     def __init__(self, host: str, port: int = 8090):
