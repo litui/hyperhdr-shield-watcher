@@ -30,6 +30,7 @@ def main():
         print(f"Power state changed from {old_state} to {new_state}")
         # If we're turning the system on or off, HDR should be turned off.
         hyph.hdr_mode = False
+        hyph.grabber_state = True if new_state == STATE_POWER_ON else False
         hyph.led_state = True if new_state == STATE_POWER_ON else False
 
     adbh.set_hdr_callback(hdr_mode_callback)

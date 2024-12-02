@@ -40,6 +40,22 @@ class HyperHDRHandler:
             print("Could not call to HyperHDR API =(", file=sys.stderr)
 
     @property
+    def grabber_state(self):
+        return self._serverinfo["info"]["components"][5]["enabled"]
+    
+    @grabber_state.setter
+    def grabber_state(self, value: bool):
+        content = {
+            "command": "componentstate",
+            "componentstate": {"component": "VIDEOGRABBER", "state": value},
+        }
+
+        try:
+            requests.post(self._url, json=content)
+        except:
+            print("Could not call to HyperHDR API =(", file=sys.stderr)
+
+    @property
     def _serverinfo(self):
         content = {"command": "serverinfo"}
 
