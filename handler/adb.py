@@ -30,13 +30,9 @@ REGEX_MAPPING = {
             "state_type": STATE_TYPE_HDR,
             "regex": re.compile(r"^(?P<label>HDR): (?P<clear_msg>Clear cached)?.*$"),
             "groups": {
-                "label": {
-                    "HDR": STATE_HDR_ON
-                },
-                "clear_msg": {
-                    "Clear cached": STATE_HDR_OFF
-                }
-            }
+                "label": {"HDR": STATE_HDR_ON},
+                "clear_msg": {"Clear cached": STATE_HDR_OFF},
+            },
         }
     ],
     "PowerManagerService": [
@@ -46,26 +42,30 @@ REGEX_MAPPING = {
             "groups": {
                 "sleep_msg": {
                     "Sleeping": STATE_POWER_SLEEP,
-                    "Waking up": STATE_POWER_ON
+                    "Waking up": STATE_POWER_ON,
                 }
-            }
+            },
         }
-    ]
+    ],
 }
 
+
 class ADBHandler:
-    def __init__(self, hostname: str, port: int = 5555, hdr_init_state=STATE_HDR_OFF, power_init_state=STATE_POWER_OFF):
+    def __init__(
+        self,
+        hostname: str,
+        port: int = 5555,
+        hdr_init_state=STATE_HDR_OFF,
+        power_init_state=STATE_POWER_OFF,
+    ):
         self._hostname = hostname
         self._port = port
         self._connected = False
         self._current_state = {
             STATE_TYPE_HDR: hdr_init_state,
-            STATE_TYPE_POWER: power_init_state
+            STATE_TYPE_POWER: power_init_state,
         }
-        self._callbacks = {
-            STATE_TYPE_HDR: None,
-            STATE_TYPE_POWER: None
-        }
+        self._callbacks = {STATE_TYPE_HDR: None, STATE_TYPE_POWER: None}
 
         # Check for existence of ADB on the path
         try:
@@ -86,7 +86,7 @@ class ADBHandler:
             print(
                 "Unable to connect to adb port on SHIELD TV device "
                 f"at {hostname}:{port}.",
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(2)
         finally:
@@ -99,17 +99,15 @@ class ADBHandler:
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:
-            print(
-                "Unable to flush adb logs",
-                file=sys.stderr
-            )
+            print("Unable to flush adb logs", file=sys.stderr)
             sys.exit(3)
 
         # Prepare common log parsing regex
         self.regex_log_parse = re.compile(
             r"^(?P<month>\d{2})-(?P<date>\d{2})\s+"
             r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})\.(?P<millisecond>\d{3})\s+"
-            r"\d+\s+\d+\s+\w\s+(?P<process>\S+)\s*:\s+(?P<message>.+)$")
+            r"\d+\s+\d+\s+\w\s+(?P<process>\S+)\s*:\s+(?P<message>.+)$"
+        )
 
         # Start processing logs
         self._ps = subprocess.Popen((self._adb_path, "logcat"), stdout=subprocess.PIPE)
@@ -120,8 +118,8 @@ class ADBHandler:
         t.start()
 
     def _process_log(self, output, queue: Queue):
-        for line in iter(output.readline, b''):
-            matched_line = self.regex_log_parse.match(line.decode('utf-8'))
+        for line in iter(output.readline, b""):
+            matched_line = self.regex_log_parse.match(line.decode("utf-8"))
 
             if matched_line:
                 process = matched_line.group("process")
@@ -134,13 +132,12 @@ class ADBHandler:
                     state = self._current_state[state_type]
                     matched_msg = m["regex"].match(message)
                     if matched_msg:
-                        for name,values in m["groups"].items():
+                        for name, values in m["groups"].items():
                             g = matched_msg.group(name)
                             if g and g in values.keys():
                                 state = values[g]
-                    
-                    queue.put({"state_type": state_type,
-                               "state": state})
+
+                    queue.put({"state_type": state_type, "state": state})
 
         output.close()
 
@@ -154,7 +151,7 @@ class ADBHandler:
             except Empty:
                 # Nothing to update
                 break
-            
+
         for stype, sval in self._current_state.items():
             if new_state[stype] != sval:
                 try:
@@ -162,7 +159,7 @@ class ADBHandler:
                 except:
                     pass
                 self._current_state[stype] = qitem["state"]
-    
+
     def set_hdr_callback(self, callback):
         self._callbacks[STATE_TYPE_HDR] = callback
 

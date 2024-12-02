@@ -12,7 +12,7 @@ class HyperHDRHandler:
     @property
     def hdr_mode(self):
         return self._serverinfo["info"]["components"][1]["enabled"]
-    
+
     @hdr_mode.setter
     def hdr_mode(self, value: bool):
         content = {
@@ -24,20 +24,16 @@ class HyperHDRHandler:
             requests.post(self._url, json=content)
         except:
             print("Could not call to HyperHDR API =(", file=sys.stderr)
-    
+
     @property
     def led_state(self):
         return self._serverinfo["info"]["components"][7]["enabled"]
-    
+
     @led_state.setter
     def led_state(self, value: bool):
         content = {
-            "command":"componentstate",
-            "componentstate":
-            {
-                "component":"LEDDEVICE",
-                "state": value
-            }
+            "command": "componentstate",
+            "componentstate": {"component": "LEDDEVICE", "state": value},
         }
 
         try:
@@ -47,9 +43,7 @@ class HyperHDRHandler:
 
     @property
     def _serverinfo(self):
-        content = {
-            "command":"serverinfo"
-        }
+        content = {"command": "serverinfo"}
 
         try:
             result = requests.post(self._url, json=content)

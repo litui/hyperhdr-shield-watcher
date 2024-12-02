@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from handler.adb import ADBHandler, STATE_POWER_ON
 from handler.hyperhdr import HyperHDRHandler
 
+
 def main():
     load_dotenv()
     shield_ip_addr = os.environ["SHIELD_IP_ADDRESS"]
@@ -14,9 +15,12 @@ def main():
 
     hyph = HyperHDRHandler(hyperhdr_ip_addr, hyperhdr_port)
 
-    adbh = ADBHandler(shield_ip_addr, shield_adb_port,
-                      hdr_init_state=hyph.hdr_mode,
-                      power_init_state=int(hyph.led_state)+1)
+    adbh = ADBHandler(
+        shield_ip_addr,
+        shield_adb_port,
+        hdr_init_state=hyph.hdr_mode,
+        power_init_state=int(hyph.led_state) + 1,
+    )
 
     def hdr_mode_callback(new_state, old_state):
         print(f"HDR state changed from {old_state} to {new_state}")
@@ -33,6 +37,7 @@ def main():
 
     while True:
         adbh.loop()
+
 
 if __name__ == "__main__":
     try:
