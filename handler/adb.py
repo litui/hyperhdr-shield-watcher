@@ -75,59 +75,26 @@ class ADBHandler:
         }
         self._callbacks = {STATE_TYPE_HDR: None, STATE_TYPE_POWER: None}
 
-        # Check for existence of ADB on the path
-        try:
-            self._adb_path = subprocess.check_output(
-                ("/usr/bin/which", "adb"), stderr=subprocess.DEVNULL
-            ).strip()
-        except subprocess.CalledProcessError:
-            print("Error: adb util not found on path!", file=sys.stderr)
-            sys.exit(1)
+        self._ps = None
+        self._pl_thread = None
 
-        # Connect ADB to the SHIELD TV
-        try:
-            subprocess.check_output(
-                (self._adb_path, "connect", f"{hostname}:{port}"),
-                stderr=subprocess.DEVNULL,
-            )
-        except subprocess.CalledProcessError:
-            print(
-                "Unable to connect to adb port on SHIELD TV device "
-                f"at {hostname}:{port}.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        finally:
-            self._connected = True
-
-        # Flush the adb logs
-        try:
-            subprocess.check_output(
-                (self._adb_path, "logcat", "-c"),
-                stderr=subprocess.DEVNULL,
-            )
-        except subprocess.CalledProcessError:
-            print("Unable to flush adb logs", file=sys.stderr)
-            sys.exit(3)
+        self._queue = Queue()
 
         # Prepare common log parsing regex
-        self.regex_log_parse = re.compile(
+        self._regex_log_parse = re.compile(
             r"^(?P<month>\d{2})-(?P<date>\d{2})\s+"
             r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})\.(?P<millisecond>\d{3})\s+"
             r"\d+\s+\d+\s+\w\s+(?P<process>\S+)\s*:\s+(?P<message>.+)$"
         )
+        self._regex_logcat_fails = [
+            re.compile("logcat: Unexpected EOF!")
+        ]
 
-        # Start processing logs
-        self._ps = subprocess.Popen((self._adb_path, "logcat"), stdout=subprocess.PIPE)
+        self._adb_start()
 
-        self._queue = Queue()
-        t = Thread(target=self._process_log, args=(self._ps.stdout, self._queue))
-        t.daemon = True
-        t.start()
-
-    def _process_log(self, output, queue: Queue):
+    def _process_log(self, output, err, queue: Queue):
         for line in iter(output.readline, b""):
-            matched_line = self.regex_log_parse.match(line.decode("utf-8"))
+            matched_line = self._regex_log_parse.match(line.decode("utf-8"))
 
             if matched_line:
                 process = matched_line.group("process")
@@ -156,7 +123,67 @@ class ADBHandler:
                             }
                         )
 
+        for line in iter(err.readline, b""):
+            for fail in self._regex_logcat_fails:
+                matched_line = fail.match(line.decode("utf-8"))
+
+                if matched_line:
+                    # Terminate now, cleanup later
+                    self._ps.terminate()
+
         output.close()
+
+    def _adb_start(self):
+        # Check for existence of ADB on the path
+        try:
+            self._adb_path = subprocess.check_output(
+                ("/usr/bin/which", "adb"), stderr=subprocess.DEVNULL
+            ).strip()
+        except subprocess.CalledProcessError:
+            print("Error: adb util not found on path!", file=sys.stderr)
+            sys.exit(1)
+
+        # Connect ADB to the SHIELD TV
+        while not self._connected:
+            try:
+                subprocess.check_output(
+                    (self._adb_path, "connect", f"{self._hostname}:{self._port}"),
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                print(
+                    "Unable to connect to adb port on SHIELD TV device "
+                    f"at {self._hostname}:{self._port}.",
+                    file=sys.stderr,
+                )
+                time.sleep(5)
+            finally:
+                self._connected = True
+
+        # Flush the adb logs
+        try:
+            subprocess.check_output(
+                (self._adb_path, "logcat", "-c"),
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            print("Unable to flush adb logs", file=sys.stderr)
+            sys.exit(3)
+
+        # Start processing logs
+        self._ps = subprocess.Popen(
+            (self._adb_path, "logcat"), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+        self._pl_thread = Thread(target=self._process_log, args=(self._ps.stdout, self._ps.stderr, self._queue))
+        self._pl_thread.daemon = True
+        self._pl_thread.start()
+
+    def _check_adb_state(self):
+        if self._ps.poll() is not None:
+            self._connected = False
+            print("ADB process has died. Restarting...")
+            self._adb_start()
 
     def _update_states_from_queue(self):
         new_state = copy.deepcopy(self._current_state)
@@ -185,4 +212,5 @@ class ADBHandler:
         self._callbacks[STATE_TYPE_POWER] = callback
 
     def loop(self):
+        self._check_adb_state()
         self._update_states_from_queue()
