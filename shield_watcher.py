@@ -2,6 +2,7 @@
 import os
 import signal
 import sys
+import time
 from dotenv import load_dotenv
 from handler.adb import ADBHandler, STATE_POWER_ON
 from handler.hyperhdr import HyperHDRHandler
@@ -51,6 +52,7 @@ def main():
 
     while True:
         adbh.loop()
+        time.sleep(1)
 
 
 if __name__ == "__main__":
