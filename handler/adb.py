@@ -16,9 +16,19 @@ STATE_POWER_OFF = 0
 STATE_POWER_SLEEP = 1
 STATE_POWER_ON = 2
 
+# Valid activity App states
+STATE_APP_STOPPED = 0
+STATE_APP_STARTED = 1
+
+# Specific apps for activity monitoring
+FLAGGED_APP_NONE = 100
+FLAGGED_APP_NETFLIX = 101
+
 # Enum of state types
 STATE_TYPE_HDR = 0
 STATE_TYPE_POWER = 1
+STATE_TYPE_ACTIVITY = 2
+
 
 REGEX_MAPPING = {
     "hwcomposer": [
@@ -55,6 +65,24 @@ REGEX_MAPPING = {
             },
         }
     ],
+    # Watch activities so we can kill on sight when the goddamn netflix button is
+    # accidentally pressed for the 35934857492th time.
+    "ActivityManager": [
+        {
+            "state_type": STATE_TYPE_ACTIVITY,
+            "regex": re.compile(r"^(?P<activity_state>Force stopping|Start proc) (?:[0-9]+[:])?(?P<activity_app>[A-Za-z0-9-_.]+).*$"),
+            "groups": {
+                "activity_state": {
+                    "Force stopping": STATE_APP_STOPPED,
+                    "Start proc": STATE_APP_STARTED
+                },
+                # @TODO: fix the hardcoding for capture groups
+                "activity_app": {
+                    "com.netflix.ninja": FLAGGED_APP_NETFLIX
+                }
+            }
+        }
+    ]
 }
 
 
@@ -210,6 +238,30 @@ class ADBHandler:
 
     def set_power_callback(self, callback):
         self._callbacks[STATE_TYPE_POWER] = callback
+
+    def set_app_activity_callback(self, callback):
+        self._callbacks[STATE_TYPE_ACTIVITY] = callback
+
+    def send_adb_shell_command(self, command: list[str]) -> bool:
+        # Send shell command via ADB as a one-off
+        # - my own use case is ["am", "force-stop", "PACKAGE_NAME"] for the stubborn apps that stop accepting
+        #   chromecast connections after the device wakes from standby.
+        # - careful what you run as this is a blocking command
+        try:
+            subprocess.check_output(
+                [self._adb_path].extend(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            print(
+                f"Unable to run adb command '{command}' on SHIELD TV device "
+                f"at {self._hostname}:{self._port}.",
+                file=sys.stderr,
+            )
+            return False
+
+        return True
 
     def loop(self):
         self._check_adb_state()

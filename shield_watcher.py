@@ -4,7 +4,7 @@ import signal
 import sys
 import time
 from dotenv import load_dotenv
-from handler.adb import ADBHandler, STATE_POWER_ON
+from handler.adb import ADBHandler, STATE_POWER_ON, STATE_APP_STARTED, FLAGGED_APP_NETFLIX
 from handler.hyperhdr import HyperHDRHandler
 
 
@@ -26,6 +26,7 @@ def main():
     shield_adb_port = int(os.environ["SHIELD_ADB_PORT"])
     hyperhdr_ip_addr = os.environ["HYPERHDR_IP_ADDRESS"]
     hyperhdr_port = int(os.environ["HYPERHDR_PORT"])
+    power_on_apps_to_stop = os.environ["POWER_ON_STOP_APPS"].split(',') if os.environ["POWER_ON_STOP_APPS"] is not None else []
 
     hyph = HyperHDRHandler(hyperhdr_ip_addr, hyperhdr_port)
 
@@ -47,6 +48,16 @@ def main():
         hyph.grabber_state = True if new_state == STATE_POWER_ON else False
         hyph.led_state = True if new_state == STATE_POWER_ON else False
 
+        if new_state == STATE_POWER_ON:
+            for app in power_on_apps_to_stop:
+                if app != "" and app is not None:
+                    # Leave out the `adb` at the start
+                    adbh.send_adb_shell_command(["shell", "am", "force-stop", app.strip()])
+
+    def app_activity_callback(new_state, old_state):
+        print(f"AppActivityCallback: new:{new_state}, old:{old_state}")
+
+    adbh.set_app_activity_callback(app_activity_callback)
     adbh.set_hdr_callback(hdr_mode_callback)
     adbh.set_power_callback(power_mode_callback)
 
