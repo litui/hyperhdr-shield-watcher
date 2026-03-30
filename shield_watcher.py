@@ -58,10 +58,9 @@ def main():
     def app_activity_callback(new_state, match_groups, old_state):
         print(f"AppActivityCallback state changed from {old_state} to {new_state} [groups:{match_groups}]")
 
-        print(f"Kill list: {always_stop_apps}")
+        # print(f"Kill list: {always_stop_apps}")
 
         app = match_groups.get("activity_app")
-        print(app)
         if new_state == 1 and app in always_stop_apps:
             # Wait a couple seconds for it to get off the ground
             # Murder the apps on the kill list \o/

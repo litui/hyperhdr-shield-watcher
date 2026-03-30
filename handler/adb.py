@@ -21,10 +21,6 @@ STATE_POWER_ON = 2
 STATE_APP_STOPPED = 0
 STATE_APP_STARTED = 1
 
-# Specific apps for activity monitoring
-FLAGGED_APP_NONE = 100
-FLAGGED_APP_NETFLIX = 101
-
 # Enum of state types
 STATE_TYPE_HDR = 0
 STATE_TYPE_POWER = 1
@@ -77,13 +73,22 @@ REGEX_MAPPING = {
                     "Force stopping": STATE_APP_STOPPED,
                     "Start proc": STATE_APP_STARTED
                 }
-                # # @TODO: fix the hardcoding for capture groups
-                # "activity_app": {
-                #     "com.netflix.ninja": FLAGGED_APP_NETFLIX
-                # }
             }
         }
-    ]
+    ],
+    # Double-tap
+    "ActivityTaskManager": [
+        {
+            "state_type": STATE_TYPE_ACTIVITY,
+            "regex": re.compile(r"^(?P<activity_type>START) [A-Za-z0-9]+ \{.*cmp=(?P<activity_app>[A-Za-z0-9-_.]+)/(?P<in_app_action>[A-Za-z0-9-_.]+).*$"),
+            "groups": {
+                "activity_state": {
+                    "Force stopping": STATE_APP_STOPPED,
+                    "START": STATE_APP_STARTED
+                }
+            }
+        }
+    ],
 }
 
 
