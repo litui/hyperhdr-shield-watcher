@@ -26,7 +26,8 @@ def main():
     shield_adb_port = int(os.environ["SHIELD_ADB_PORT"])
     hyperhdr_ip_addr = os.environ["HYPERHDR_IP_ADDRESS"]
     hyperhdr_port = int(os.environ["HYPERHDR_PORT"])
-    power_on_apps_to_stop = os.environ["POWER_ON_STOP_APPS"].split(',') if os.environ["POWER_ON_STOP_APPS"] is not None else []
+    power_on_apps_to_stop = os.environ.get("POWER_ON_STOP_APPS", "").split(',')
+    always_stop_apps = os.environ.get("ALWAYS_STOP_APPS", "").split(',')
 
     hyph = HyperHDRHandler(hyperhdr_ip_addr, hyperhdr_port)
 
@@ -37,11 +38,11 @@ def main():
         power_init_state=int(hyph.led_state) + 1,
     )
 
-    def hdr_mode_callback(new_state, old_state):
+    def hdr_mode_callback(new_state, match_groups, old_state):
         print(f"HDR state changed from {old_state} to {new_state}")
         hyph.hdr_mode = new_state
 
-    def power_mode_callback(new_state, old_state):
+    def power_mode_callback(new_state, match_groups, old_state):
         print(f"Power state changed from {old_state} to {new_state}")
         # If we're turning the system on or off, HDR should be turned off.
         hyph.hdr_mode = False
@@ -54,8 +55,18 @@ def main():
                     # Leave out the `adb` at the start
                     adbh.send_adb_shell_command(["shell", "am", "force-stop", app.strip()])
 
-    def app_activity_callback(new_state, old_state):
-        print(f"AppActivityCallback: new:{new_state}, old:{old_state}")
+    def app_activity_callback(new_state, match_groups, old_state):
+        print(f"AppActivityCallback state changed from {old_state} to {new_state} [groups:{match_groups}]")
+
+        print(f"Kill list: {always_stop_apps}")
+
+        app = match_groups.get("activity_app")
+        print(app)
+        if new_state == 1 and app in always_stop_apps:
+            # Wait a couple seconds for it to get off the ground
+            # Murder the apps on the kill list \o/
+            adbh.send_adb_shell_command(["shell", "am", "force-stop", app])
+
 
     adbh.set_app_activity_callback(app_activity_callback)
     adbh.set_hdr_callback(hdr_mode_callback)

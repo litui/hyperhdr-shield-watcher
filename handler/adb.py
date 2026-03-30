@@ -6,6 +6,7 @@ import subprocess
 import time
 from queue import Queue, Empty
 from threading import Thread
+import typing
 
 # Valid HDR states
 STATE_HDR_OFF = False
@@ -75,11 +76,11 @@ REGEX_MAPPING = {
                 "activity_state": {
                     "Force stopping": STATE_APP_STOPPED,
                     "Start proc": STATE_APP_STARTED
-                },
-                # @TODO: fix the hardcoding for capture groups
-                "activity_app": {
-                    "com.netflix.ninja": FLAGGED_APP_NETFLIX
                 }
+                # # @TODO: fix the hardcoding for capture groups
+                # "activity_app": {
+                #     "com.netflix.ninja": FLAGGED_APP_NETFLIX
+                # }
             }
         }
     ]
@@ -93,6 +94,7 @@ class ADBHandler:
         port: int = 5555,
         hdr_init_state=STATE_HDR_OFF,
         power_init_state=STATE_POWER_OFF,
+        activity_init_state=STATE_APP_STOPPED
     ):
         self._hostname = hostname
         self._port = port
@@ -100,8 +102,9 @@ class ADBHandler:
         self._current_state = {
             STATE_TYPE_HDR: hdr_init_state,
             STATE_TYPE_POWER: power_init_state,
+            STATE_TYPE_ACTIVITY: activity_init_state
         }
-        self._callbacks = {STATE_TYPE_HDR: None, STATE_TYPE_POWER: None}
+        self._callbacks = {STATE_TYPE_HDR: None, STATE_TYPE_POWER: None, STATE_TYPE_ACTIVITY: None}
 
         self._ps = None
         self._pl_thread = None
@@ -128,28 +131,25 @@ class ADBHandler:
                 process = matched_line.group("process")
                 message = matched_line.group("message")
 
-                matches = REGEX_MAPPING.get(process, [])
+                match_spec = REGEX_MAPPING.get(process, [])
+                match_results = [process["regex"].match(message) for process in match_spec]
 
-                for m in matches:
-                    state_type = m["state_type"]
-                    state = self._current_state[state_type]
-                    matched_msg = m["regex"].match(message)
-                    if matched_msg:
-                        for name, values in m["groups"].items():
-                            g = matched_msg.group(name)
-                            if g and g in values.keys():
-                                state = values[g]
-                                # print(
-                                #     f"Process log: {process} logged state {state} via regex match group {name}"
-                                # )
-
-                        queue.put(
-                            {
-                                "process": process,
-                                "state_type": state_type,
-                                "state": state,
-                            }
-                        )
+                for i in range(len(match_spec)):
+                    if match_results[i] is not None:
+                        state_type = match_spec[i]["state_type"]
+                        state = self._current_state[state_type]  # fallback to prior value
+                        all_groups = {
+                            g: match_spec[i].get("groups", {}).get(g, {}).get(v, v)
+                            for g, v in match_results[i].groupdict().items()
+                        }
+                        if len(all_groups.values()) > 0:
+                            state = [v for k, v in all_groups.items()][0]
+                        queue.put({
+                            "process": process,
+                            "state_type": state_type,
+                            "state": state,
+                            "match_groups": all_groups
+                        })
 
         for line in iter(err.readline, b""):
             for fail in self._regex_logcat_fails:
@@ -228,7 +228,7 @@ class ADBHandler:
             if new_state[stype] != sval:
                 try:
                     # print(f"Process {qitem['process']} triggered {stype} callback...")
-                    self._callbacks[stype](new_state[stype], sval)
+                    self._callbacks[stype](new_state[stype], qitem["match_groups"], sval)
                 except:
                     pass
                 self._current_state[stype] = qitem["state"]
@@ -246,11 +246,15 @@ class ADBHandler:
         # Send shell command via ADB as a one-off
         # - my own use case is ["am", "force-stop", "PACKAGE_NAME"] for the stubborn apps that stop accepting
         #   chromecast connections after the device wakes from standby.
-        # - careful what you run as this is a blocking command
+        # - careful what you run as this is potentially a blocking command
+
         try:
+            final_cmd = [self._adb_path]
+            final_cmd.extend(command)
+            print(f"Final command: {final_cmd}")
+
             subprocess.check_output(
-                [self._adb_path].extend(command),
-                stdout=subprocess.DEVNULL,
+                final_cmd,
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:
