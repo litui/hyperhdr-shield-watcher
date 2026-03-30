@@ -60,16 +60,21 @@ def main():
 
         # print(f"Kill list: {always_stop_apps}")
 
+        print(f"Match Groups? {match_groups}")
         app = match_groups.get("activity_app")
         if new_state == 1 and app in always_stop_apps:
             # Wait a couple seconds for it to get off the ground
             # Murder the apps on the kill list \o/
             adbh.send_adb_shell_command(["shell", "am", "force-stop", app])
 
+        # We want to be overzealous in setting the new state value to 0 every time so nothing is missed.
+        return 0
+
 
     adbh.set_app_activity_callback(app_activity_callback)
     adbh.set_hdr_callback(hdr_mode_callback)
     adbh.set_power_callback(power_mode_callback)
+
 
     while True:
         adbh.loop()

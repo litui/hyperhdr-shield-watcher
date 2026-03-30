@@ -67,7 +67,7 @@ REGEX_MAPPING = {
     "ActivityManager": [
         {
             "state_type": STATE_TYPE_ACTIVITY,
-            "regex": re.compile(r"^(?P<activity_state>Force stopping|Start proc) (?:[0-9]+[:])?(?P<activity_app>[A-Za-z0-9-_.]+).*$"),
+            "regex": re.compile(r"^(?P<activity_state>Force stopping|Start proc) (?:[0-9]+[:])?(?P<activity_app>com\.netflix\.ninja+).*$"),
             "groups": {
                 "activity_state": {
                     "Force stopping": STATE_APP_STOPPED,
@@ -80,15 +80,28 @@ REGEX_MAPPING = {
     "ActivityTaskManager": [
         {
             "state_type": STATE_TYPE_ACTIVITY,
-            "regex": re.compile(r"^(?P<activity_type>START) [A-Za-z0-9]+ \{.*cmp=(?P<activity_app>[A-Za-z0-9-_.]+)/(?P<in_app_action>[A-Za-z0-9-_.]+).*$"),
+            "regex": re.compile(r"^(?P<activity_state>START) [A-Za-z0-9]+ \{.*cmp=(?P<activity_app>com\.netflix\.ninja+)/(?P<in_app_action>[A-Za-z0-9-_.]+).*$"),
             "groups": {
                 "activity_state": {
-                    "Force stopping": STATE_APP_STOPPED,
+                    "None": STATE_APP_STOPPED,
                     "START": STATE_APP_STARTED
                 }
             }
         }
     ],
+    # We're going all out on Netflix. Pernicious little piece of crap. Gets the smack down every time it tries to reach out on the network =p
+    "ConnectivityService": [
+        {
+            "state_type": STATE_TYPE_ACTIVITY,
+            "regex": re.compile(r"^.*(?P<activity_state>RequestorPackageName): (?P<activity_app>com\.netflix\.ninja+).*$"),
+            "groups": {
+                "activity_state": {
+                    "None": STATE_APP_STOPPED,
+                    "RequestorPackageName": STATE_APP_STARTED
+                }
+            }
+        }
+    ]
 }
 
 
@@ -144,11 +157,13 @@ class ADBHandler:
                         state_type = match_spec[i]["state_type"]
                         state = self._current_state[state_type]  # fallback to prior value
                         all_groups = {
-                            g: match_spec[i].get("groups", {}).get(g, {}).get(v, v)
+                            g: match_spec[i].get("groups", {}).get(g, {v: v}).get(v, v)
                             for g, v in match_results[i].groupdict().items()
                         }
+                        print(f"All groups: {all_groups}")
                         if len(all_groups.values()) > 0:
                             state = [v for k, v in all_groups.items()][0]
+                        print(f"Process: {process}, State: {state}")
                         queue.put({
                             "process": process,
                             "state_type": state_type,
@@ -220,6 +235,7 @@ class ADBHandler:
 
     def _update_states_from_queue(self):
         new_state = copy.deepcopy(self._current_state)
+        # print(f"Deepcopy new state: {new_state}")
 
         while True:
             try:
@@ -229,14 +245,21 @@ class ADBHandler:
                 # Nothing to update
                 break
 
+        # print(f"New state after queue loop: {new_state}")
+
         for stype, sval in self._current_state.items():
             if new_state[stype] != sval:
                 try:
+                    # print(f"New state just before callback: {new_state}")
                     # print(f"Process {qitem['process']} triggered {stype} callback...")
-                    self._callbacks[stype](new_state[stype], qitem["match_groups"], sval)
+                    updated_state = self._callbacks[stype](new_state[stype], qitem["match_groups"], sval)
+
+                    if updated_state is not None:
+                        self._current_state[stype] = updated_state
+                    else:
+                        self._current_state[stype] = qitem["state"]
                 except:
                     pass
-                self._current_state[stype] = qitem["state"]
 
     def set_hdr_callback(self, callback):
         self._callbacks[STATE_TYPE_HDR] = callback
@@ -256,7 +279,7 @@ class ADBHandler:
         try:
             final_cmd = [self._adb_path]
             final_cmd.extend(command)
-            print(f"Final command: {final_cmd}")
+            print(f"Command being sent: {final_cmd}")
 
             subprocess.check_output(
                 final_cmd,
