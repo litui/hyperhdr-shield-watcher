@@ -4,7 +4,7 @@ import signal
 import sys
 import time
 from dotenv import load_dotenv
-from handler.adb import ADBHandler, STATE_POWER_ON, STATE_APP_STARTED, FLAGGED_APP_NETFLIX
+from handler.adb import ADBHandler, STATE_POWER_ON, STATE_APP_STARTED
 from handler.hyperhdr import HyperHDRHandler
 
 
